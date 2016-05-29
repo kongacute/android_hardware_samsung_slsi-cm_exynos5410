@@ -1223,10 +1223,12 @@ static void checkMobiCoreVersion(
 
         // Check MobiCore version info.
         char *msg;
+        /* FIXME
         if (!checkVersionOkMCI(versionPayload.versionInfo.versionMci, &msg)) {
             LOG_E("%s", msg);
             failed = true;
         }
+        */
         LOG_I_RELEASE("%s", msg);
         if (!checkVersionOkSO(versionPayload.versionInfo.versionSo, &msg)) {
             LOG_E("%s", msg);
