@@ -1,6 +1,6 @@
 /*
  * Copyright Samsung Electronics Co.,LTD.
- * Copyright (C) 2012 The Android Open Source Project
+ * Copyright (C) 2013 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,17 +29,14 @@
 #include <signal.h>
 #include <math.h>
 #include <sys/poll.h>
-
 #include <cutils/log.h>
-
 #include <utils/Log.h>
 
 #include "ExynosJpegApi.h"
 
-#define MAX_JPG_WIDTH (8192)
-#define MAX_JPG_HEIGHT (8192)
+#define MAXIMUM_JPEG_SIZE(n) ((65535 - (n)) * 32768)
 
-#define JPEG_ERROR_LOG(fmt,...)
+#define JPEG_ERROR_LOG(fmt,...) ALOGE(fmt,##__VA_ARGS__)
 
 ExynosJpegBase::ExynosJpegBase()
 {
@@ -52,7 +49,7 @@ ExynosJpegBase::ExynosJpegBase()
     t_bFlagExcute = false;
     t_bFlagSelect = false;
     t_iCacheValue = 0;
-    t_iSelectNode = 0; // 0:auto , 1:fimp , 2:hx or fimp2;
+    t_iSelectNode = 0; // 0:jpeg2 hx , 1:jpeg2 hx , 2:jpeg hx;
     t_iPlaneNum = 0;
     t_iJpegFd = 0;
 }
@@ -128,8 +125,7 @@ int ExynosJpegBase::t_v4l2SetFmt(int iFd, enum v4l2_buf_type eType, struct CONFI
         }
         break;
     default:
-            return ERROR_INVALID_V4l2_BUF_TYPE;
-            break;
+        return ERROR_INVALID_V4l2_BUF_TYPE;
     }
 
     iRet = ioctl(iFd, VIDIOC_S_FMT, &fmt);
@@ -207,7 +203,6 @@ int ExynosJpegBase::t_v4l2Querybuf(int iFd, struct BUF_INFO *pstBufInfo, struct 
     struct v4l2_buffer v4l2_buf;
     struct v4l2_plane plane[JPEG_MAX_PLANE_CNT];
     int iRet = ERROR_NONE;
-    unsigned int i;
 
     memset(plane, 0, (int)JPEG_MAX_PLANE_CNT * sizeof(struct v4l2_plane));
 
@@ -223,12 +218,11 @@ int ExynosJpegBase::t_v4l2Querybuf(int iFd, struct BUF_INFO *pstBufInfo, struct 
         return iRet;
     }
 
-    for (i= 0; i < v4l2_buf.length; i++) {
+    for (unsigned int i= 0; i < v4l2_buf.length; i++) {
         pstBuf->size[i] = v4l2_buf.m.planes[i].length;
-        pstBuf->c_addr[i] = (char *) mmap(0,
-            pstBuf->size[i],
-            PROT_READ | PROT_WRITE, MAP_SHARED, iFd,
-            v4l2_buf.m.planes[i].m.mem_offset);
+        pstBuf->c_addr[i] = (char *)mmap(0, pstBuf->size[i],
+                        PROT_READ | PROT_WRITE, MAP_SHARED, iFd,
+                        v4l2_buf.m.planes[i].m.mem_offset);
 
         if ((pstBuf->c_addr[i] == MAP_FAILED) || (pstBuf->size[i] <= 0)) {
             JPEG_ERROR_LOG("[%s]: mmap failed\n", __func__);
@@ -245,7 +239,6 @@ int ExynosJpegBase::t_v4l2Qbuf(int iFd, struct BUF_INFO *pstBufInfo, struct BUFF
 {
     struct v4l2_buffer v4l2_buf;
     struct v4l2_plane plane[JPEG_MAX_PLANE_CNT];
-    int i;
     int iRet = ERROR_NONE;
 
     memset(&v4l2_buf, 0, sizeof(struct v4l2_buffer));
@@ -259,14 +252,14 @@ int ExynosJpegBase::t_v4l2Qbuf(int iFd, struct BUF_INFO *pstBufInfo, struct BUFF
     v4l2_buf.m.planes = plane;
 
     if (pstBufInfo->memory == V4L2_MEMORY_USERPTR) {
-        for (i = 0; i < pstBufInfo->numOfPlanes; i++) {
+        for (int i = 0; i < pstBufInfo->numOfPlanes; i++) {
             v4l2_buf.m.planes[i].m.userptr = (unsigned long)pstBuf->c_addr[i];
             v4l2_buf.m.planes[i].length = pstBuf->size[i];
         }
     }
 
     if (pstBufInfo->memory == V4L2_MEMORY_DMABUF) {
-        for (i = 0; i < pstBufInfo->numOfPlanes; i++) {
+        for (int i = 0; i < pstBufInfo->numOfPlanes; i++) {
             v4l2_buf.m.planes[i].m.fd = (unsigned long)pstBuf->i_addr[i];
             v4l2_buf.m.planes[i].length = pstBuf->size[i];
         }
@@ -289,7 +282,7 @@ int ExynosJpegBase::t_v4l2Dqbuf(int iFd, enum v4l2_buf_type eType, enum v4l2_mem
     int iRet = ERROR_NONE;
 
     memset(&buf, 0, sizeof(struct v4l2_buffer));
-    memset(planes, 0, sizeof(struct v4l2_plane)*3);
+    memset(planes, 0, sizeof(struct v4l2_plane) * 3);
 
     buf.type = eType;
     buf.memory = eMemory;
@@ -302,10 +295,11 @@ int ExynosJpegBase::t_v4l2Dqbuf(int iFd, enum v4l2_buf_type eType, enum v4l2_mem
         return iRet;
     }
 
-    if ((eType == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) && \
-        (t_stJpegConfig.mode == MODE_ENCODE)) {
+    if (buf.flags & V4L2_BUF_FLAG_ERROR)
+        JPEG_ERROR_LOG("[%s:%d] Buffer status is error\n", __func__, buf.flags);
+
+    if ((eType == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) && (t_stJpegConfig.mode == MODE_ENCODE))
         t_stJpegConfig.sizeJpeg = buf.m.planes[0].bytesused;
-    }
 
     return iRet;
 }
@@ -379,15 +373,13 @@ int ExynosJpegBase::create(enum MODE eMode)
     memset(&t_stJpegOutbuf, 0, sizeof(struct BUFFER));
 
     t_stJpegConfig.mode = eMode;
-
     t_bFlagCreate = true;
     t_bFlagCreateInBuf = false;
     t_bFlagCreateOutBuf = false;
     t_bFlagExcute = false;
     t_bFlagSelect = false;
     t_iCacheValue = 0;
-    t_iSelectNode = 0; // auto
-
+    t_iSelectNode = 0;
     t_iPlaneNum = 0;
 
     return ERROR_NONE;
@@ -446,13 +438,26 @@ int ExynosJpegBase::destroy(int iInBufs, int iOutBufs)
 
 int ExynosJpegBase::setSize(int iW, int iH)
 {
+    int mcu_x_size = 0;
+
     if (t_bFlagCreate == false)
         return ERROR_JPEG_DEVICE_NOT_CREATE_YET;
 
-    if (iW < 0 || MAX_JPG_WIDTH < iW)
-        return ERROR_INVALID_IMAGE_SIZE;
+    switch (t_stJpegConfig.pix.enc_fmt.out_fmt) {
+    case V4L2_PIX_FMT_JPEG_444:
+    case V4L2_PIX_FMT_JPEG_GRAY:
+        mcu_x_size = 8;
+        break;
+    case V4L2_PIX_FMT_JPEG_422:
+    case V4L2_PIX_FMT_JPEG_420:
+        mcu_x_size = 16;
+        break;
+    default:
+        mcu_x_size = 8;
+        break;
+    }
 
-    if (iH < 0 || MAX_JPG_HEIGHT < iH)
+    if (iH < 0 || iW < 0 || (iW * iH) > MAXIMUM_JPEG_SIZE(mcu_x_size))
         return ERROR_INVALID_IMAGE_SIZE;
 
     t_stJpegConfig.width = iW;
@@ -476,10 +481,10 @@ int ExynosJpegBase::setJpegConfig(enum MODE eMode, void *pConfig)
         switch (t_stJpegConfig.pix.enc_fmt.in_fmt) {
         case V4L2_PIX_FMT_YUYV:
         case V4L2_PIX_FMT_NV12:
+        case V4L2_PIX_FMT_NV21:
+        case V4L2_PIX_FMT_YUV420:
         case V4L2_PIX_FMT_RGB565X:
         case V4L2_PIX_FMT_BGR32:
-        case V4L2_PIX_FMT_YUV420:
-        case V4L2_PIX_FMT_NV16:
         case V4L2_PIX_FMT_RGB32:
             t_iPlaneNum = 1;
             break;
@@ -493,10 +498,10 @@ int ExynosJpegBase::setJpegConfig(enum MODE eMode, void *pConfig)
         switch (t_stJpegConfig.pix.dec_fmt.out_fmt) {
         case V4L2_PIX_FMT_YUYV:
         case V4L2_PIX_FMT_NV12:
-        case V4L2_PIX_FMT_BGR32:
-        case V4L2_PIX_FMT_RGB565X:
+        case V4L2_PIX_FMT_NV21:
         case V4L2_PIX_FMT_YUV420:
-        case V4L2_PIX_FMT_NV16:
+        case V4L2_PIX_FMT_RGB565X:
+        case V4L2_PIX_FMT_BGR32:
         case V4L2_PIX_FMT_RGB32:
             t_iPlaneNum = 1;
             break;
@@ -559,7 +564,7 @@ int ExynosJpegBase::setBuf(struct BUFFER *pstBuf, char **pcBuf, int *iSize, int 
     if (iPlaneNum <= 0)
         return ERROR_BUFFER_TOO_SMALL;
 
-    for(int i=0;i<iPlaneNum;i++) {
+    for (int i = 0; i < iPlaneNum; i++) {
         if (pcBuf[i] == NULL) {
             memset(pstBuf, 0, sizeof(struct BUFFER));
             return ERROR_BUFFR_IS_NULL;
@@ -613,8 +618,8 @@ int ExynosJpegBase::setBuf(struct BUFFER *pstBuf, int *piBuf, int *iSize, int iP
     if (iPlaneNum <= 0)
         return ERROR_BUFFER_TOO_SMALL;
 
-    for(int i = 0; i < iPlaneNum; i++) {
-        if (piBuf[i] == NULL) {
+    for (int i = 0; i < iPlaneNum; i++) {
+        if (piBuf[i] == 0) {
             memset(pstBuf, 0, sizeof(struct BUFFER));
             return ERROR_BUFFR_IS_NULL;
         }
@@ -660,12 +665,10 @@ int ExynosJpegBase::setJpegFormat(enum MODE eMode, int iV4l2JpegFormat)
             break;
         default:
             return ERROR_INVALID_JPEG_MODE;
-            break;
         }
         break;
     default:
         return ERROR_INVALID_JPEG_FORMAT;
-        break;
     }
 
     return ERROR_NONE;
@@ -684,7 +687,6 @@ int ExynosJpegBase::setColorBufSize(enum MODE eMode, int *piBufSize, int iSize)
         break;
     default:
         return ERROR_INVALID_JPEG_MODE;
-        break;
     }
 
     return setColorBufSize(iFormat, piBufSize, iSize, t_stJpegConfig.width, t_stJpegConfig.height);
@@ -694,21 +696,19 @@ int ExynosJpegBase::setColorBufSize(int iFormat, int *piBufSize, int iSize, int 
 {
     int pBufSize[3];
 
-    if(iSize>3)
+    if(iSize > 3)
         return ERROR_INVALID_IMAGE_SIZE;
 
     switch (iFormat) {
     case V4L2_PIX_FMT_YUYV:
     case V4L2_PIX_FMT_RGB565X:
-    case V4L2_PIX_FMT_NV61:
-    case V4L2_PIX_FMT_NV16:
-        pBufSize[0] = width*height*2;
+        pBufSize[0] = width * height * 2;
         pBufSize[1] = 0;
         pBufSize[2] = 0;
         break;
     case V4L2_PIX_FMT_RGB32:
     case V4L2_PIX_FMT_BGR32:
-        pBufSize[0] = width*height*4;
+        pBufSize[0] = width * height * 4;
         pBufSize[1] = 0;
         pBufSize[2] = 0;
         break;
@@ -716,34 +716,23 @@ int ExynosJpegBase::setColorBufSize(int iFormat, int *piBufSize, int iSize, int 
     case V4L2_PIX_FMT_NV12:
     case V4L2_PIX_FMT_YUV420:
     case V4L2_PIX_FMT_YVU420:
-        pBufSize[0] = (width*height*3)/2;
+        pBufSize[0] = (width * height * 3) >> 1;
         pBufSize[1] = 0;
         pBufSize[2] = 0;
         break;
-    case V4L2_PIX_FMT_YUV444_2P:
-        pBufSize[0] = width*height;
-        pBufSize[1] = width*height*2;
-        pBufSize[2] = 0;
-        break;
-    case V4L2_PIX_FMT_YUV444_3P:
-        pBufSize[0] = width*height;
-        pBufSize[1] = width*height;
-        pBufSize[2] = width*height;
-        break;
     case V4L2_PIX_FMT_YUV444:
-    case V4L2_PIX_FMT_RGB24:
-        pBufSize[0] = width*height*3;
+        pBufSize[0] = width * height * 3;
         pBufSize[1] = 0;
         pBufSize[2] = 0;
         break;
     default:
-        pBufSize[0] = width*height*4;
-        pBufSize[1] = width*height*4;
-        pBufSize[2] = width*height*4;
+        pBufSize[0] = width * height * 4;
+        pBufSize[1] = width * height * 4;
+        pBufSize[2] = width * height * 4;
         break;
     }
 
-    memcpy(piBufSize, pBufSize, iSize*sizeof(int));
+    memcpy(piBufSize, pBufSize, iSize * sizeof(int));
 
     return ERROR_NONE;
 }
@@ -762,7 +751,7 @@ int ExynosJpegBase::updateConfig(enum MODE eMode, int iInBufs, int iOutBufs, int
     if (eMode == MODE_ENCODE) {
         iRet = t_v4l2SetJpegcomp(t_iJpegFd, t_stJpegConfig.enc_qual);
         if (iRet < 0) {
-            JPEG_ERROR_LOG("[%s,%d]: S_JPEGCOMP failed\n", __func__,iRet);
+            JPEG_ERROR_LOG("[%s,%d]: S_JPEGCOMP failed\n", __func__, iRet);
             return ERROR_INVALID_JPEG_CONFIG;
         }
     }
@@ -772,7 +761,7 @@ int ExynosJpegBase::updateConfig(enum MODE eMode, int iInBufs, int iOutBufs, int
 
     iRet = t_v4l2SetFmt(t_iJpegFd, V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE, &t_stJpegConfig);
     if (iRet < 0) {
-        JPEG_ERROR_LOG("[%s,%d]: jpeg input S_FMT failed\n", __func__,iRet);
+        JPEG_ERROR_LOG("[%s,%d]: jpeg input S_FMT failed\n", __func__, iRet);
         return ERROR_INVALID_JPEG_CONFIG;
     }
 
@@ -791,7 +780,7 @@ int ExynosJpegBase::updateConfig(enum MODE eMode, int iInBufs, int iOutBufs, int
     t_stJpegConfig.numOfPlanes = iOutBufPlanes;
     iRet = t_v4l2SetFmt(t_iJpegFd, V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE, &t_stJpegConfig);
     if (iRet < 0) {
-        JPEG_ERROR_LOG("[%s,%d]: jpeg output S_FMT failed\n", __func__,iRet);
+        JPEG_ERROR_LOG("[%s,%d]: jpeg output S_FMT failed\n", __func__, iRet);
         return ERROR_INVALID_JPEG_CONFIG;
     }
 

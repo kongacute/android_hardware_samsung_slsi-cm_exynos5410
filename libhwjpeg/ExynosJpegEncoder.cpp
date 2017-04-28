@@ -1,6 +1,6 @@
 /*
  * Copyright Samsung Electronics Co.,LTD.
- * Copyright (C) 2012 The Android Open Source Project
+ * Copyright (C) 2013 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,9 +29,7 @@
 #include <signal.h>
 #include <math.h>
 #include <sys/poll.h>
-
 #include <cutils/log.h>
-
 #include <utils/Log.h>
 
 #include "ExynosJpegApi.h"
@@ -40,7 +38,6 @@
 
 #define NUM_JPEG_ENC_IN_PLANES (1)
 #define NUM_JPEG_ENC_OUT_PLANES (1)
-
 #define NUM_JPEG_ENC_IN_BUFS (1)
 #define NUM_JPEG_ENC_OUT_BUFS (1)
 
@@ -81,15 +78,15 @@ int ExynosJpegEncoder::checkOutBufType(void)
     return checkBufType(&t_stJpegOutbuf);
 }
 
- int ExynosJpegEncoder::getInBuf(char **pcBuf, int *piInputSize, int iSize)
+int ExynosJpegEncoder::getInBuf(char **pcBuf, int *piInputSize, int iSize)
 {
     return getBuf(t_bFlagCreateInBuf, &t_stJpegInbuf, pcBuf, piInputSize, iSize, t_iPlaneNum);
 }
 
 int ExynosJpegEncoder::getOutBuf(char **pcBuf, int *piOutputSize)
 {
-    return getBuf(t_bFlagCreateOutBuf, &t_stJpegOutbuf, pcBuf, piOutputSize, \
-        NUM_JPEG_ENC_OUT_PLANES, NUM_JPEG_ENC_OUT_PLANES);
+    return getBuf(t_bFlagCreateOutBuf, &t_stJpegOutbuf, pcBuf, piOutputSize,
+                    NUM_JPEG_ENC_OUT_PLANES, NUM_JPEG_ENC_OUT_PLANES);
 }
 
 int ExynosJpegEncoder::setInBuf(char **pcBuf, int *iSize)
@@ -121,8 +118,8 @@ int ExynosJpegEncoder::getInBuf(int *piBuf, int *piInputSize, int iSize)
 
 int ExynosJpegEncoder::getOutBuf(int *piBuf, int *piOutputSize)
 {
-    return getBuf(t_bFlagCreateOutBuf, &t_stJpegOutbuf, piBuf, piOutputSize, \
-        NUM_JPEG_ENC_OUT_PLANES, NUM_JPEG_ENC_OUT_PLANES);
+    return getBuf(t_bFlagCreateOutBuf, &t_stJpegOutbuf, piBuf, piOutputSize,
+                    NUM_JPEG_ENC_OUT_PLANES, NUM_JPEG_ENC_OUT_PLANES);
 }
 
 int ExynosJpegEncoder::setInBuf(int *piBuf, int *iSize)
@@ -183,9 +180,9 @@ int ExynosJpegEncoder::setColorBufSize(int *piBufSize, int iSize)
 
 int ExynosJpegEncoder::updateConfig(void)
 {
-    return ExynosJpegBase::updateConfig(MODE_ENCODE, \
-        NUM_JPEG_ENC_IN_BUFS, NUM_JPEG_ENC_OUT_BUFS, \
-        NUM_JPEG_ENC_IN_PLANES, NUM_JPEG_ENC_OUT_PLANES);
+    return ExynosJpegBase::updateConfig(MODE_ENCODE,
+                    NUM_JPEG_ENC_IN_BUFS, NUM_JPEG_ENC_OUT_BUFS,
+                    NUM_JPEG_ENC_IN_PLANES, NUM_JPEG_ENC_OUT_PLANES);
 }
 
 int ExynosJpegEncoder::setQuality(int iV4l2Quality)

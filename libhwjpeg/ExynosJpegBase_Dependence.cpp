@@ -1,6 +1,6 @@
 /*
  * Copyright Samsung Electronics Co.,LTD.
- * Copyright (C) 2012 The Android Open Source Project
+ * Copyright (C) 2013 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,9 +29,7 @@
 #include <signal.h>
 #include <math.h>
 #include <sys/poll.h>
-
 #include <cutils/log.h>
-
 #include <utils/Log.h>
 
 #include "ExynosJpegApi.h"
@@ -41,106 +39,43 @@
 #define JPEG2_DEC_NODE       "/dev/video13"
 #define JPEG2_ENC_NODE       "/dev/video14"
 
-#define JPEG_ERROR_LOG(fmt,...)
+#define JPEG_ERROR_LOG(fmt,...) ALOGE(fmt,##__VA_ARGS__)
 
 int ExynosJpegBase::ckeckJpegSelct(enum MODE eMode)
 {
     if (t_bFlagSelect == false) {
         return ERROR_NONE;
     } else {
-        switch (t_iSelectNode) {
-        case 1:
-            switch (eMode) {
-            case MODE_ENCODE:
-                switch (t_stJpegConfig.pix.enc_fmt.in_fmt) {
-                case V4L2_PIX_FMT_YUYV:
-                case V4L2_PIX_FMT_NV12:
-                case V4L2_PIX_FMT_RGB565X:
-                case V4L2_PIX_FMT_BGR32:
-                case V4L2_PIX_FMT_YUV420:
-                case V4L2_PIX_FMT_NV16:
-                case V4L2_PIX_FMT_RGB32:
-                    return ERROR_NONE;
-                default:
-                    JPEG_ERROR_LOG("ERR(%s):JPEG device was not matching with colorformat\n", __func__);
-                    return ERROR_INVALID_SELECT;
-                }
-                break;
-            case MODE_DECODE:
-                switch (t_stJpegConfig.pix.enc_fmt.out_fmt) {
-                case V4L2_PIX_FMT_YUYV:
-                case V4L2_PIX_FMT_NV12:
-                case V4L2_PIX_FMT_BGR32:
-                case V4L2_PIX_FMT_RGB565X:
-                case V4L2_PIX_FMT_YUV420:
-                case V4L2_PIX_FMT_NV16:
-                case V4L2_PIX_FMT_RGB32:
-                    return ERROR_NONE;
-                default:
-                    JPEG_ERROR_LOG("ERR(%s):JPEG device was not matching with colorformat\n", __func__);
-                    return ERROR_INVALID_SELECT;
-                }
-                break;
+        switch (eMode) {
+        case MODE_ENCODE:
+            switch (t_stJpegConfig.pix.enc_fmt.in_fmt) {
+            case V4L2_PIX_FMT_YUYV:
+            case V4L2_PIX_FMT_NV12:
+            case V4L2_PIX_FMT_NV21:
+            case V4L2_PIX_FMT_RGB565X:
+            case V4L2_PIX_FMT_BGR32:
+            case V4L2_PIX_FMT_RGB32:
+            case V4L2_PIX_FMT_YUV420:
+                return ERROR_NONE;
             default:
-                break;
+                JPEG_ERROR_LOG("ERR(%s):JPEG device was not matching with colorformat\n", __func__);
+                return ERROR_INVALID_SELECT;
             }
             break;
-        case 2:
-            switch (eMode) {
-            case MODE_ENCODE:
-                switch (t_stJpegConfig.pix.enc_fmt.in_fmt) {
-                case V4L2_PIX_FMT_YUYV:
-                case V4L2_PIX_FMT_NV12:
-                case V4L2_PIX_FMT_RGB565X:
-                    return ERROR_NONE;
-                default:
-                    JPEG_ERROR_LOG("ERR(%s):JPEG device was not matching with colorformat\n", __func__);
-                    return ERROR_INVALID_SELECT;
-                }
-            break;
-            case MODE_DECODE:
-                switch (t_stJpegConfig.pix.enc_fmt.out_fmt) {
-                case V4L2_PIX_FMT_YUYV:
-                case V4L2_PIX_FMT_NV12:
-                    return ERROR_NONE;
-                default:
-                    JPEG_ERROR_LOG("ERR(%s):JPEG device was not matching with colorformat\n", __func__);
-                    return ERROR_INVALID_SELECT;
-                }
-                break;
+        case MODE_DECODE:
+            switch (t_stJpegConfig.pix.enc_fmt.out_fmt) {
+            case V4L2_PIX_FMT_YUYV:
+            case V4L2_PIX_FMT_NV12:
+            case V4L2_PIX_FMT_NV21:
+            case V4L2_PIX_FMT_RGB565X:
+            case V4L2_PIX_FMT_BGR32:
+            case V4L2_PIX_FMT_RGB32:
+            case V4L2_PIX_FMT_YUV420:
+                return ERROR_NONE;
             default:
-                break;
+                JPEG_ERROR_LOG("ERR(%s):JPEG device was not matching with colorformat\n", __func__);
+                return ERROR_INVALID_SELECT;
             }
-            break;
-        case 0:
-            switch (eMode) {
-            case MODE_ENCODE:
-                switch (t_stJpegConfig.pix.enc_fmt.in_fmt) {
-                case V4L2_PIX_FMT_YUYV:
-                case V4L2_PIX_FMT_NV12:
-                case V4L2_PIX_FMT_RGB565X:
-                    t_iSelectNode = 2;
-                    return ERROR_NONE;
-                default:
-                    t_iSelectNode = 1;
-                    return ERROR_NONE;
-                }
-                break;
-            case MODE_DECODE:
-                switch (t_stJpegConfig.pix.enc_fmt.out_fmt) {
-                case V4L2_PIX_FMT_YUYV:
-                case V4L2_PIX_FMT_NV12:
-                    t_iSelectNode = 2;
-                    return ERROR_NONE;
-                default:
-                    t_iSelectNode = 1;
-                    return ERROR_NONE;
-                }
-                break;
-            default:
-                break;
-            }
-            break;
         default:
             break;
         }
@@ -162,6 +97,7 @@ int ExynosJpegBase::selectJpegHW(int iSel)
 int ExynosJpegBase::openNode(enum MODE eMode)
 {
     switch (t_iSelectNode) {
+    case 0:
     case 1:
         switch (eMode) {
         case MODE_ENCODE:
@@ -186,35 +122,7 @@ int ExynosJpegBase::openNode(enum MODE eMode)
             break;
         }
         break;
-    case 0:
     default:
-        switch (eMode) {
-        case MODE_ENCODE:
-            switch (t_stJpegConfig.pix.enc_fmt.in_fmt) {
-            case V4L2_PIX_FMT_YUYV:
-            case V4L2_PIX_FMT_NV12:
-            case V4L2_PIX_FMT_RGB565X:
-                t_iJpegFd = open(JPEG2_ENC_NODE, O_RDWR, 0);
-                break;
-            default:
-                t_iJpegFd = open(JPEG_ENC_NODE, O_RDWR, 0);
-                break;
-            }
-            break;
-        case MODE_DECODE:
-            switch (t_stJpegConfig.pix.dec_fmt.out_fmt) {
-            case V4L2_PIX_FMT_YUYV:
-            case V4L2_PIX_FMT_NV12:
-                t_iJpegFd = open(JPEG2_DEC_NODE, O_RDWR, 0);
-                break;
-            default:
-                t_iJpegFd = open(JPEG_DEC_NODE, O_RDWR, 0);
-                break;
-            }
-            break;
-        default:
-            break;
-        }
         break;
     }
 
@@ -243,11 +151,11 @@ int ExynosJpegBase::setColorFormat(enum MODE eMode, int iV4l2ColorFormat)
         switch(iV4l2ColorFormat) {
         case V4L2_PIX_FMT_YUYV:
         case V4L2_PIX_FMT_NV12:
-        case V4L2_PIX_FMT_RGB565X:
-        case V4L2_PIX_FMT_BGR32:
+        case V4L2_PIX_FMT_NV21:
         case V4L2_PIX_FMT_YUV420:
-        case V4L2_PIX_FMT_NV16:
+        case V4L2_PIX_FMT_RGB565X:
         case V4L2_PIX_FMT_RGB32:
+        case V4L2_PIX_FMT_BGR32:
             t_iPlaneNum = 1;
             t_stJpegConfig.pix.enc_fmt.in_fmt = iV4l2ColorFormat;
             break;
@@ -261,11 +169,11 @@ int ExynosJpegBase::setColorFormat(enum MODE eMode, int iV4l2ColorFormat)
         switch(iV4l2ColorFormat) {
         case V4L2_PIX_FMT_YUYV:
         case V4L2_PIX_FMT_NV12:
-        case V4L2_PIX_FMT_BGR32:
-        case V4L2_PIX_FMT_RGB565X:
+        case V4L2_PIX_FMT_NV21:
         case V4L2_PIX_FMT_YUV420:
-        case V4L2_PIX_FMT_NV16:
+        case V4L2_PIX_FMT_RGB565X:
         case V4L2_PIX_FMT_RGB32:
+        case V4L2_PIX_FMT_BGR32:
             t_iPlaneNum = 1;
             t_stJpegConfig.pix.dec_fmt.out_fmt = iV4l2ColorFormat;
             break;
@@ -278,7 +186,6 @@ int ExynosJpegBase::setColorFormat(enum MODE eMode, int iV4l2ColorFormat)
     default:
         t_iPlaneNum = 0;
         return ERROR_INVALID_JPEG_MODE;
-        break;
     }
 
     int iRet = ckeckJpegSelct(eMode);
@@ -290,7 +197,7 @@ int ExynosJpegBase::setColorFormat(enum MODE eMode, int iV4l2ColorFormat)
 int ExynosJpegBase::checkBufType(struct BUFFER *pstBuf)
 {
     int ret =0;
-    if (pstBuf->c_addr[0] > 0)
+    if ((int)pstBuf->c_addr[0] != 0 && (int)pstBuf->c_addr[0] != -1)
         ret = ret|JPEG_BUF_TYPE_USER_PTR;
 
     if (pstBuf->i_addr[0] > 0)
