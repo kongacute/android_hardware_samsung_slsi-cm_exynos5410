@@ -39,8 +39,8 @@ OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "logging.h"
 #include "provisioningagent.h"
 
-#define SPID_DEVELOPER_SP 0  // this SPID causes RootPA not to include any SPID to the URL
 #define CERT_PATH "/system/etc/security/cacerts"
+#define HARDCODED_STORAGEPATH "/data/data/com.gd.mobicore.pa"
 
 JavaVM* jvmP_ = NULL;
 const jint VERSION=JNI_VERSION_1_2;
@@ -398,9 +398,11 @@ void setFilesPath(JNIEnv* envP, jobject obj)
     jmethodID getFilesDirPath = envP->GetMethodID(cls, "getFilesDirPath","()Ljava/lang/String;");
     if(NULL==getFilesDirPath)
     {
-        LOGE("setFilesPath getFilesDirPath==NULL");
+        setPaths(HARDCODED_STORAGEPATH, CERT_PATH);
+        LOGE("<<setFilesPath getFilesDirPath==NULL, used hardcoded paths");
         return;
     }
+
 
     jobject jpath = envP->CallObjectMethod(obj, getFilesDirPath);
     if(jpath!=NULL)
@@ -417,8 +419,10 @@ void setFilesPath(JNIEnv* envP, jobject obj)
     }
     else
     {
-        LOGE("setFilesPath jpath==NULL");
+        LOGE("setFilesPath jpath==NULL, using hardcoded paths");
+        setPaths(HARDCODED_STORAGEPATH, CERT_PATH);
     }
+
     LOGD("<<setFilesPath\n");
 }
 
@@ -526,7 +530,7 @@ JNIEXPORT jint JNICALL Java_com_gd_mobicore_pa_jni_CommonPAWrapper_doProvisionin
 
 
 JNIEXPORT jint JNICALL Java_com_gd_mobicore_pa_jni_CommonPAWrapper_installTrustlet
-  (JNIEnv* envP, jobject obj, jint requestDataType, jbyteArray tltOrKeyData, jbyteArray seAddress)
+  (JNIEnv* envP, jobject obj, jint spid, jbyteArray uuid, jint requestDataType, jbyteArray tltOrKeyData, jbyteArray seAddress)
 {
     LOGD(">>Java_com_gd_mobicore_pa_jni_CommonPAWrapper_installTrustlet %ld %ld\n", (long int) stateUpdateCallback, (long int) getSystemInfoCallback);
     setFilesPath(envP, obj);
@@ -548,7 +552,16 @@ JNIEXPORT jint JNICALL Java_com_gd_mobicore_pa_jni_CommonPAWrapper_installTrustl
         trustletInstallationData_t tltData;
         tltData.dataP=(uint8_t*) jniHelp.jByteArrayToCByteArray(tltOrKeyData, &tltData.dataLength);
         tltData.dataType=(TltInstallationRequestDataType) requestDataType;
-        ret=installTrustlet(SPID_DEVELOPER_SP, stateUpdateCallback, getSystemInfoCallback, &tltData);
+        uint32_t uuidLength=0;
+        uint8_t* uuidP=(uint8_t*) jniHelp.jByteArrayToCByteArray(uuid, &uuidLength);
+        if(UUID_LENGTH != uuidLength){
+            LOGD("<<Java_com_gd_mobicore_pa_jni_CommonPAWrapper_installTrustlet, wrong uuidLength %d, not installing\n", uuidLength);
+            free(uuidP);
+            return ROOTPA_ERROR_ILLEGAL_ARGUMENT;
+        }
+        memcpy(tltData.uuid.value, uuidP, UUID_LENGTH);
+        free(uuidP);
+        ret=installTrustlet(spid, stateUpdateCallback, getSystemInfoCallback, &tltData);
     }
     LOGD("<<Java_com_gd_mobicore_pa_jni_CommonPAWrapper_installTrustlet %d\n", ret);
     return ret;

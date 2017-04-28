@@ -1,5 +1,5 @@
 /*
-Copyright  © Trustonic Limited 2013
+Copyright  Â© Trustonic Limited 2013
 
 All rights reserved.
 
@@ -190,6 +190,10 @@ typedef struct {
     tells whether dataP points to trustlet binary (REQUEST_DATA_TLT) or encryption key (REQUEST_DATA_KEY)
     */
     TltInstallationRequestDataType dataType;
+    /**
+    uuid of the trustlet
+    */
+    mcUuid_t uuid;
 }trustletInstallationData_t;
 
 #ifdef __cplusplus

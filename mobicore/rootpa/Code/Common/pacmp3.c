@@ -51,6 +51,37 @@ void setCallbackP(CallbackFunctionP callbackP)
     callbackP_=callbackP;
 }
 
+// recovery from factory reset
+bool factoryResetAssumed()
+{
+    uint32_t contSize=0;
+    void* containerP=NULL;
+    mcResult_t result1=MC_DRV_OK;
+    mcResult_t result2=MC_DRV_OK;
+
+    if((result1=regReadAuthToken((AUTHTOKENCONTAINERP*)&containerP, &contSize))==MC_DRV_OK)
+    {
+        free(containerP);
+        return false;
+    }
+
+    if((result2=regReadRoot((ROOTCONTAINERP*)&containerP, &contSize))==MC_DRV_OK)
+    {
+        free(containerP);
+        return false;
+    }
+
+    // if neither root container, nor auth token container exists, we assume that factory reset has been performed.
+    if(MC_DRV_ERR_INVALID_DEVICE_FILE==result1 && MC_DRV_ERR_INVALID_DEVICE_FILE==result2)
+    {
+        LOGD("factoryResetAssumed returning true");
+        return true;
+    }
+
+    return false;
+}
+// recovery from factory reset
+
 /*
 */
 uint32_t sizeOfCmp()

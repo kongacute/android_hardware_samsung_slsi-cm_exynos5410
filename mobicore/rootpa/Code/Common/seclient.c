@@ -43,10 +43,20 @@ OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #define HTTP_CODE_MOVED                 301
 #define HTTP_CODE_BAD_REQUEST           400
-#define HTTP_CODE_INTERNAL_ERROR        405
+#define HTTP_CODE_NOT_FOUND             404
+#define HTTP_CODE_METHOD_NOT_ALLOWED    405
 #define HTTP_CODE_NOT_ACCEPTABLE        406
 #define HTTP_CODE_REQUEST_TIMEOUT       408
 #define HTTP_CODE_CONFLICT              409
+#define HTTP_CODE_LENGTH_REQUIRED       411
+#define HTTP_CODE_TOO_LONG              414
+#define HTTP_CODE_UNSUPPORTED_MEDIA     415
+#define HTTP_CODE_INVALID_DATA          422
+#define HTTP_CODE_FAILED_DEPENDENCY     424
+#define HTTP_CODE_INTERNAL_ERROR        500
+#define HTTP_CODE_CMP_VERSION           501
+#define HTTP_CODE_SERVICE_UNAVAILABLE   503
+#define HTTP_CODE_HTTP_VERSION          505
 
 #ifdef __DEBUG
 #define NONEXISTENT_TEST_URL "http://10.255.255.8:9/"
@@ -627,20 +637,43 @@ rootpaerror_t httpCommunicate(const char * const inputP, const char** linkP, con
     }
 
     LOGD("http return code from SE %ld", (long int) http_code);
-    if ((200 <= http_code &&  http_code < 300) ||  HTTP_CODE_MOVED == http_code)
+    if ((200 <= http_code &&  http_code < 300))
     {
         ret=ROOTPA_OK;
     }
     else if (HTTP_CODE_BAD_REQUEST == http_code ||
-             HTTP_CODE_INTERNAL_ERROR == http_code ||
+             HTTP_CODE_METHOD_NOT_ALLOWED == http_code ||
              HTTP_CODE_NOT_ACCEPTABLE == http_code ||
-             HTTP_CODE_CONFLICT == http_code )
+             HTTP_CODE_CONFLICT == http_code ||
+             HTTP_CODE_LENGTH_REQUIRED == http_code ||
+             HTTP_CODE_TOO_LONG == http_code ||
+             HTTP_CODE_UNSUPPORTED_MEDIA == http_code ||
+             HTTP_CODE_INVALID_DATA == http_code ||
+             HTTP_CODE_INTERNAL_ERROR == http_code ||
+             HTTP_CODE_HTTP_VERSION == http_code)
     {
         ret=ROOTPA_ERROR_INTERNAL;
     }
-    else if(HTTP_CODE_REQUEST_TIMEOUT == http_code  || (411 <= http_code && http_code <= 505))
+    else if(HTTP_CODE_MOVED == http_code ||  // new URL would be in Location: header but RootPA does not support in currently (unless libcurl supports it transparently)
+            HTTP_CODE_REQUEST_TIMEOUT == http_code  ||
+            HTTP_CODE_SERVICE_UNAVAILABLE == http_code)
     {
         ret=ROOTPA_ERROR_NETWORK;
+    }
+    else if (HTTP_CODE_CMP_VERSION == http_code)
+    {
+
+        ret=ROOTPA_ERROR_SE_CMP_VERSION;
+    }
+    else if (HTTP_CODE_FAILED_DEPENDENCY == http_code)
+    {
+        ret=ROOTPA_ERROR_SE_PRECONDITION_NOT_MET;
+    }
+    else if (HTTP_CODE_NOT_FOUND == http_code)
+    {
+        ret=ROOTPA_ERROR_ILLEGAL_ARGUMENT; // since the arguments (spid, in some cases uuid) for the URL are received from the client,
+                                           // this can be returned. It is also possible that suid is wrong (corrupted in device or info
+                                           // from device binding missing from SE, but we can not detect that easily.
     }
     else
     {
